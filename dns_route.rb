@@ -1,19 +1,14 @@
 #!/usr/bin/env ruby
 require 'rubydns'
+require 'yaml'
 
-# Sample input:
-# 8.4.4.5.8.6.3.7.1.8.1.icehook.com
-# The preceeding number 1 should be appended to the number if necessary
+CONFIG = YAML::load_file(File.join(__dir__, 'dns_route.yml'))
 
-# Expected response:
-#
+#puts CONFIG['domains'].inspect
 
-INTERFACES = [[:udp, "127.0.0.1", 5354]]
-
-RESOLVERS = [
-  RubyDNS::Resolver.new([[:udp, "8.8.8.8", 53]]),
-  RubyDNS::Resolver.new([[:udp, "207.198.118.90", 53]])
-]
+INTERFACES = CONFIG['interface']
+RESOLVERS = CONFIG['resolvers']
+DOMAINS = CONFIG['domains']
 
 module URIHelper
   def self.build(name, domain, match)
@@ -41,7 +36,7 @@ RubyDNS::run_server(:listen => INTERFACES) do
 
   match(/.*.icehook.com$/) do |transaction|
     original_name = transaction.question.to_s
-    new_name = URIHelper.build(original_name, ".e164.org", /.icehook.com$/)
+    new_name = URIHelper.build(original_name, DOMAINS[:org], /.icehook.com$/)
 
     transaction.passthrough!(RESOLVERS[0], :name => new_name) do |reply|
       reply.answer[0][0] = Resolv::DNS::Name.create(original_name)
@@ -51,15 +46,11 @@ RubyDNS::run_server(:listen => INTERFACES) do
 
   match(/.*.telaris$/) do |transaction|
     original_name = transaction.question.to_s
-    new_name = URIHelper.build(original_name, ".a6928cfe-20a2-4292-9cd3-35666430765d.e164.arpa", /.telaris$/)
-
-    logger.info "Name: #{new_name.inspect}"
+    new_name = URIHelper.build(original_name, DOMAINS[:arpa], /.telaris$/)
 
     transaction.passthrough!(RESOLVERS[1], :name => new_name) do |reply|
       reply.answer[0][0] = Resolv::DNS::Name.create(original_name) unless reply.answer.empty?
       reply.question[0][0] = Resolv::DNS::Name.create(original_name) unless reply.question.empty?
-
-      logger.info "Reply: #{reply.inspect}"
     end
   end
 
@@ -67,8 +58,8 @@ RubyDNS::run_server(:listen => INTERFACES) do
     replies = []
     names = []
     original_name = transaction.question.to_s
-    names << URIHelper.build(original_name, ".e164.org", /.unified$/)
-    names << URIHelper.build(original_name, ".a6928cfe-20a2-4292-9cd3-35666430765d.e164.arpa", /.unified$/)
+    names << URIHelper.build(original_name, DOMAINS[:org], /.unified$/)
+    names << URIHelper.build(original_name, DOMAINS[:arpa], /.unified$/)
 
     #logger.info "Names Array: #{names.inspect}"
 
