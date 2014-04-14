@@ -53,10 +53,13 @@ RubyDNS::run_server(:listen => INTERFACES) do
     original_name = transaction.question.to_s
     new_name = URIHelper.build(original_name, ".a6928cfe-20a2-4292-9cd3-35666430765d.e164.arpa", /.telaris$/)
 
+    logger.info "Name: #{new_name.inspect}"
+
     transaction.passthrough!(RESOLVERS[1], :name => new_name) do |reply|
-      #logger.info reply.inspect
       reply.answer[0][0] = Resolv::DNS::Name.create(original_name) unless reply.answer.empty?
       reply.question[0][0] = Resolv::DNS::Name.create(original_name) unless reply.question.empty?
+
+      logger.info "Reply: #{reply.inspect}"
     end
   end
 
@@ -64,15 +67,20 @@ RubyDNS::run_server(:listen => INTERFACES) do
     replies = []
     names = []
     original_name = transaction.question.to_s
-    names << URIHelper.build(original_name, ".a6928cfe-20a2-4292-9cd3-35666430765d.e164.arpa", /.telaris$/)
-    names << URIHelper.build(original_name, ".e164.org", /.icehook.com$/)
+    names << URIHelper.build(original_name, ".e164.org", /.unified$/)
+    names << URIHelper.build(original_name, ".a6928cfe-20a2-4292-9cd3-35666430765d.e164.arpa", /.unified$/)
+
+    #logger.info "Names Array: #{names.inspect}"
 
     names.each_index do |index|
-      transaction.passthrough(RESOLVERS[index], :name => names[index]) do |reply|
-        replies << Resolv::DNS::Name.create(original_name) unless reply.answer.empty?
+      transaction.passthrough!(RESOLVERS[index], :name => names[index]) do |reply|
+        replies << Resolv::DNS::Name.create(original_name)
+        reply.answer[0][0] = replies[index] unless reply.answer.empty?
+        reply.question[0][0] = replies[index] unless reply.question.empty?
+        #logger.info "Reply: #{reply.inspect}"
       end
     end
-    logger.info replies.inspect
+    #logger.info "Replies Array: #{replies.inspect}"
   end
 end
 
